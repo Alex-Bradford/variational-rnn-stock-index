@@ -32,14 +32,14 @@ class BayesLinear(nn.Module):
                             torch.Tensor(
                                 self.in_features, 
                                 self.out_features
-                            ).uniform_(-5, -4)
+                            ).uniform_(-4, -3)
                         )
         
         self.bias_rho = nn.Parameter(
                             torch.Tensor(
                                 1, 
                                 self.out_features
-                            ).uniform_(-5, -4)
+                            ).uniform_(-4, -3)
                         )
     
         self.weight = GaussianWeight(self.weight_mu, self.weight_rho)
@@ -61,7 +61,7 @@ class BayesLinear(nn.Module):
         self.log_prior = 0
         self.log_variational_posterior = 0
 
-    def forward(self, x, sampling=False, calculate_log_probs=False):
+    def forward(self, x, sampling=False, calculate_log_probs=False, testing=False):
         
         if sampling:
             weight = self.weight.sample()
@@ -69,8 +69,8 @@ class BayesLinear(nn.Module):
         else:
             weight = self.weight.mu
             bias = self.bias.mu
-        
-        if self.training or calculate_log_probs:
+
+        if (testing==False) or calculate_log_probs:
             self.log_prior = self.prior_weight.log_prob(weight) + self.prior_bias.log_prob(bias)    
             self.log_variational_posterior = self.weight.log_prob(weight) + self.bias.log_prob(bias)
         else:

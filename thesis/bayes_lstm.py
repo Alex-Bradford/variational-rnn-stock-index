@@ -25,7 +25,7 @@ class BayesLSTM(nn.Module):
         self.output_gate = BayesLinear(self.input_dim + self.hidden_dim, self.hidden_dim)
         self.output = BayesLinear(self.hidden_dim, self.output_dim)
 
-    def forward(self, x, sampling=False):
+    def forward(self, x, sampling=False, testing=False):
         # Validate input shape
         assert len(x.shape) == 3, f"Expected input to be 3-dim, got {len(x.shape)}"
         # Get dimensions of the input
@@ -42,10 +42,10 @@ class BayesLSTM(nn.Module):
             combined = torch.cat((x_t, h_t), 1)
 
             # Weights for memory and hidden state update
-            i_t = torch.sigmoid(self.input_gate(combined))
-            f_t = torch.sigmoid(self.forget_gate(combined))
-            c_hat_t = torch.tanh(self.cell_gate(combined))
-            o_t = torch.sigmoid(self.output_gate(combined))
+            i_t = torch.sigmoid(self.input_gate(combined,sampling,testing))
+            f_t = torch.sigmoid(self.forget_gate(combined,sampling,testing))
+            c_hat_t = torch.tanh(self.cell_gate(combined,sampling,testing))
+            o_t = torch.sigmoid(self.output_gate(combined,sampling,testing))
 
             # Update memory
             c_t = torch.mul(f_t, c_t) + torch.mul(i_t, c_hat_t)

@@ -19,6 +19,8 @@ from torchmetrics import MeanSquaredError, SpearmanCorrCoef
 from tqdm import tqdm, trange
 
 import matplotlib.pyplot as plt
+import math
+import csv
 
 
 def main():
@@ -28,18 +30,15 @@ def main():
     data_path = 'C://Users//alexb//Downloads//'
     test_start_date = pd.Timestamp('2021-01-01')
     num_bck_timeframes = 5
-    num_weeks_per_bck_timeframe = 2
+    num_weeks_per_bck_timeframe = 5
     # eg. 13 blocks of 4 week returns
     num_fwd_timeframes = 5
     num_weeks_per_fwd_timeframe = 1
     # calculate train end date
     train_end_date = test_start_date - pd.Timedelta(str(int(num_fwd_timeframes*num_weeks_per_fwd_timeframe)+1)+'w')  # make sure no overlap between train and test
-    num_samples = 30
-    num_epochs = 100
+    num_samples = 100
+    num_epochs = 50
     lr = 0.01
-
-    # num_samples = 10
-    # num_epochs = 10
 
     ########
     # Results tables
@@ -48,68 +47,88 @@ def main():
     df_train_rc = pd.DataFrame()
     df_test_rmse = pd.DataFrame()
     df_test_rc = pd.DataFrame()
+    results_mean = [[],[],[],[]]
+    results_std = [[],[],[],[]]
 
 
     ########
     # Import data and prep dataset
     ########
-    df_data, X_train, Y_train, X_test, Y_test, dict_historical_means, scaler_features, scaler_labels = import_and_clean_data(data_path,test_start_date,train_end_date,num_bck_timeframes,num_weeks_per_bck_timeframe,num_fwd_timeframes,num_weeks_per_fwd_timeframe)
-
-    ########
-    # Train linear regression
-    ########
-    # train_linear_regression(df_data,X_train,Y_train,X_test,Y_test,scaler_labels,test_start_date)
-
-    ########
-    # "Train" a naive model which uses historical mean
-    ########
-    # train_naive_model(df_data,Y_test,test_start_date,dict_historical_means,scaler_labels)
+    df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled, dict_historical_means, scaler_features, scaler_labels = \
+        import_and_clean_data(data_path,test_start_date,train_end_date,num_bck_timeframes,num_weeks_per_bck_timeframe,num_fwd_timeframes,num_weeks_per_fwd_timeframe)
 
     ########
     # Train a standard FF neural network
     ########
-    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc = train_vanilla_nn(
-        df_data, X_train, Y_train, X_test, Y_test, scaler_labels, test_start_date,train_end_date,num_samples,
-        num_epochs,lr,num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc)
+    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,results_mean,results_std = train_vanilla_nn(
+        df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled,scaler_labels, test_start_date,train_end_date,num_samples,
+        num_epochs,lr,num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,data_path,results_mean,results_std)
 
     ########
     # Train a rnn or lstm neural network
     ########
-    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc = train_vanilla_rnn_or_lstm(
-        df_data, X_train, Y_train, X_test, Y_test, scaler_labels, test_start_date,train_end_date,num_samples,num_epochs,
-        lr,'rnn',num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc)
+    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,results_mean,results_std = train_vanilla_rnn_or_lstm(
+        df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled,scaler_labels, test_start_date,train_end_date,num_samples,num_epochs,
+        lr,'rnn',num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,data_path,results_mean,results_std)
 
-    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc = train_vanilla_rnn_or_lstm(
-        df_data, X_train, Y_train, X_test, Y_test, scaler_labels, test_start_date,train_end_date,num_samples,num_epochs,
-        lr,'lstm',num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc)
+    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,results_mean,results_std = train_vanilla_rnn_or_lstm(
+        df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled,scaler_labels, test_start_date,train_end_date,num_samples,num_epochs,
+        lr,'lstm',num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,data_path,results_mean,results_std)
 
     ########
     # Train a Bayesian rnn or lstm neural network
     ########
-    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc = train_bayes_rnn_or_lstm(
-        df_data, X_train, Y_train, X_test, Y_test, scaler_labels, test_start_date,train_end_date,num_samples,num_epochs,
-        lr,'rnn',num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,data_path)
+    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,results_mean,results_std = train_bayes_rnn_or_lstm(
+        df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled,scaler_labels, test_start_date,train_end_date,num_samples,num_epochs,
+        lr,'rnn',num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,data_path,results_mean,results_std)
 
-    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc = train_bayes_rnn_or_lstm(
-        df_data, X_train, Y_train, X_test, Y_test, scaler_labels, test_start_date,train_end_date,num_samples,num_epochs,
-        lr,'lstm',num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,data_path)
+    df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,results_mean,results_std = train_bayes_rnn_or_lstm(
+        df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled,scaler_labels, test_start_date,train_end_date,num_samples,num_epochs,
+        lr,'lstm',num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,data_path,results_mean,results_std)
 
     ########
     # Print LaTeX
     ########
-    df_train_rmse.columns = ['Fwd 1 week','Fwd 2 week','Fwd 3 week','Fwd 4 week','Fwd 5 week']
+    df_train_rmse.columns = ['Step-1','Step-2','Step-3','Step-4','Step-5']
     df_train_rmse.index = ['FFNN', 'RNN','LSTM','Bayes-RNN','Bayes-LSTM']
-    df_train_rc.columns = ['Fwd 1 week', 'Fwd 2 week', 'Fwd 3 week', 'Fwd 4 week', 'Fwd 5 week']
+    df_train_rc.columns = ['Step-1','Step-2','Step-3','Step-4','Step-5']
     df_train_rc.index = ['FFNN', 'RNN','LSTM','Bayes-RNN','Bayes-LSTM']
-    df_test_rmse.columns = ['Fwd 1 week', 'Fwd 2 week', 'Fwd 3 week', 'Fwd 4 week', 'Fwd 5 week']
+    df_test_rmse.columns = ['Step-1','Step-2','Step-3','Step-4','Step-5']
     df_test_rmse.index = ['FFNN', 'RNN','LSTM','Bayes-RNN','Bayes-LSTM']
-    df_test_rc.columns = ['Fwd 1 week', 'Fwd 2 week', 'Fwd 3 week', 'Fwd 4 week', 'Fwd 5 week']
+    df_test_rc.columns = ['Step-1','Step-2','Step-3','Step-4','Step-5']
     df_test_rc.index = ['FFNN', 'RNN','LSTM','Bayes-RNN','Bayes-LSTM']
 
     print(df_train_rmse.to_latex(position='t',column_format='|lccccc|').replace('\\\\','\\\\ \\hline').replace('toprule','hline'))
     print(df_train_rc.to_latex(position='t',column_format='|lccccc|').replace('\\\\','\\\\ \\hline').replace('toprule','hline'))
     print(df_test_rmse.to_latex(position='t',column_format='|lccccc|').replace('\\\\','\\\\ \\hline').replace('toprule','hline'))
     print(df_test_rc.to_latex(position='t',column_format='|lccccc|').replace('\\\\','\\\\ \\hline').replace('toprule','hline'))
+
+    ##############
+    # Bar charts #
+    ##############
+    # Build the plot
+    N = 5
+    x = np.arange(N)  # the x locations for the groups
+    width = 0.15       # the width of the bars
+    names = ['train_rmse','train_rc','test_rmse','test_rc']
+    ylabels = ['RMSE (Mean)','Rank Correlation','RMSE (Mean)','Rank Correlation']
+    # Bars
+    for q in range(0,4):
+        fig, ax = plt.subplots()
+        for i in range (0,5):
+            ax.bar(x+width*i,
+                   results_mean[q][i],
+                   width,
+                   yerr=list(2*np.array(results_std[q][i])), align='center', ecolor='black', capsize=3, edgecolor='black')
+        # Extras
+        ax.set_ylabel(ylabels[q])
+        ax.set_xticks(x+width*2)
+        ax.set_xticklabels( ('Step-1','Step-2','Step-3','Step-4','Step-5') )
+        ax.legend( ('FFNN', 'RNN', 'LSTM', 'Bayes-RNN', 'Bayes-LSTM') )
+        plt.tight_layout(pad=1.0)
+        plt.savefig(data_path + names[q] +'_bar_chart.png')
+        plt.close(fig)
+        # plt.show()
 
 
 def import_and_clean_data(data_path,test_start_date,train_end_date,num_bck_timeframes,num_weeks_per_bck_timeframe,num_fwd_timeframes,num_weeks_per_fwd_timeframe):
@@ -155,20 +174,6 @@ def import_and_clean_data(data_path,test_start_date,train_end_date,num_bck_timef
     # capture historical mean for use in a naive model later
     dict_historical_means = df_data[df_data['date_time']<=train_end_date].groupby('instr')['label_'+str(i)].mean().to_dict()
 
-    # features: pivot
-    # df_melt = pd.melt(df_data, id_vars=['date_time','instr'], value_vars=x_cols)
-    # df_pivot = df_melt.pivot(index='date_time', columns=['instr','variable'], values='value')
-    # df_pivot = df_pivot.reset_index()
-    # df_pivot.columns.name = None
-    # df_pivot.columns = df_pivot.columns.map('_'.join).str.strip('_')
-
-    # drop x_cols, and then merge data with df_pivot
-    # df_data = df_data.drop(x_cols,axis=1)
-    # df_data = df_data.merge(df_pivot,how='left',on='date_time')
-    # # calculate new list of x_col
-    # x_cols = df_pivot.columns.to_list()
-    # x_cols = x_cols[1:].copy()  # don't keep the 'date_time' col in list of x_cols
-
     # split data into train and test
     # we have data from 2011 to 2022: use 2021+ for test
     X_train = df_data[df_data['date_time'] <= train_end_date][x_cols]
@@ -184,59 +189,24 @@ def import_and_clean_data(data_path,test_start_date,train_end_date,num_bck_timef
     X_test = scaler_features.transform(X_test)
     scaler_labels.fit(Y_train.values)
     Y_train = scaler_labels.transform(Y_train.values)
+    Y_test_unscaled = Y_test.copy()
+    Y_test = scaler_labels.transform(Y_test.values)
 
     # clip very large outliers for training
     Y_train = np.clip(Y_train, -2, 2)
     Y_train = Y_train - np.mean(Y_train,axis=0)
 
-    return df_data, X_train, Y_train, X_test, Y_test, dict_historical_means, scaler_features, scaler_labels
+    return df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled, dict_historical_means, scaler_features, scaler_labels
 
 
-def train_linear_regression(df_data,X_train,Y_train,X_test,Y_test,scaler_labels,test_start_date):
-    linreg = LinearRegression()
-    linreg.fit(X_train, Y_train.values.ravel())
-    # make preds
-    linreg_preds = linreg.predict(X_test)
-    linreg_preds_returns = scaler_labels.inverse_transform(linreg_preds.reshape(-1, 1))
-    Y_test_returns = scaler_labels.inverse_transform(Y_test.values.reshape(-1, 1))
-    # evaluate preds
-    rmse = mean_squared_error(Y_test_returns, linreg_preds_returns) ** 0.5
-    r_squared = r2_score(Y_test_returns, linreg_preds_returns)
-    # rank correlations
-    df_test = df_data[df_data['date_time'] >= test_start_date].copy()
-    df_test = df_test.reset_index(level=0, drop=True)
-    df_test['label_rank'] = df_test.groupby('date_time')['label'].rank(ascending=True).reset_index(level=0, drop=True)
-    df_test['linreg_preds'] = linreg_preds_returns.flatten()
-    df_test['linreg_preds_rank'] = df_test.groupby('date_time')['linreg_preds'].rank(ascending=True).reset_index(
-        level=0, drop=True)
-    # print correlation of ranks
-    rank_correls = round(np.corrcoef(df_test.dropna()['label_rank'], df_test.dropna()['linreg_preds_rank'])[0][1], 4)
-    print('linreg rmse, exp_var, rank_correls:', round(rmse, 4), round(r_squared, 4), rank_correls)
-
-
-def train_naive_model(df_data,Y_test,test_start_date,dict_historical_means,scaler_labels):
-    naive_preds_returns = df_data[df_data['date_time'] >= test_start_date]['instr'].map(dict_historical_means)
-    Y_test_returns = scaler_labels.inverse_transform(Y_test.values.reshape(-1, 1))
-    rmse = mean_squared_error(Y_test_returns, naive_preds_returns) ** 0.5
-    r_squared = r2_score(Y_test_returns, naive_preds_returns)
-    df_test = df_data[df_data['date_time'] >= test_start_date].copy()
-    df_test = df_test.reset_index(level=0, drop=True)
-    df_test['label_rank'] = df_test.groupby('date_time')['label'].rank(ascending=True).reset_index(level=0, drop=True)
-    df_test['naive_preds'] = naive_preds_returns.reset_index(level=0, drop=True)
-    df_test['naive_preds_rank'] = df_test.groupby('date_time')['naive_preds'].rank(ascending=True).reset_index(level=0,drop=True)
-    # print correlation of ranks
-    rank_correls = round(np.corrcoef(df_test.dropna()['label_rank'], df_test.dropna()['naive_preds_rank'])[0][1], 4)
-    print('naive rmse, exp_var, rank_correls:', round(rmse, 4), round(r_squared, 4), rank_correls)
-
-
-def train_vanilla_nn(df_data, X_train, Y_train, X_test, Y_test, scaler_labels, test_start_date,train_end_date,
-                     num_samples,num_epochs,lr,num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc):
+def train_vanilla_nn(df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled,scaler_labels, test_start_date,train_end_date,
+                     num_samples,num_epochs,lr,num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,data_path,results_mean,results_std):
 
     # Passing to DataLoader
-    batch_size = 111
+    batch_size = 128
     train_tensor = data_utils.TensorDataset(torch.tensor(X_train).float(), torch.tensor(Y_train).float())
     train_loader = data_utils.DataLoader(train_tensor, batch_size=batch_size, shuffle=True)
-    test_tensor = data_utils.TensorDataset(torch.tensor(X_test).float(), torch.tensor(Y_test.values).float())
+    test_tensor = data_utils.TensorDataset(torch.tensor(X_test).float(), torch.tensor(Y_test).float())
     test_loader = data_utils.DataLoader(test_tensor, batch_size=batch_size, shuffle=True)
 
     device = 'cpu'
@@ -247,6 +217,7 @@ def train_vanilla_nn(df_data, X_train, Y_train, X_test, Y_test, scaler_labels, t
 
     # loss fn and optimiser
     loss_fn = nn.MSELoss()
+    metric = MeanSquaredError()
 
     # MSE
     train_rmse_list = []
@@ -277,40 +248,64 @@ def train_vanilla_nn(df_data, X_train, Y_train, X_test, Y_test, scaler_labels, t
 
         # evaluate preds for this sample
         test_rmse_list, test_rankcorrels_list, train_rmse_list, train_rankcorrels_list = \
-            calculate_performance_this_sample(scaler_labels, nn_preds, nn_preds_train, Y_test, Y_train,
+            calculate_performance_this_sample(scaler_labels, nn_preds, nn_preds_train, Y_test, Y_test_unscaled,Y_train,
                                               num_fwd_timeframes, df_data,
                                               test_start_date, train_end_date, test_rmse_list, test_rankcorrels_list,
                                               train_rmse_list, train_rankcorrels_list)
 
+        ###########################################
+        # look at mean and std dev of predictions #
+        ###########################################
+        nn_preds_returns = scaler_labels.inverse_transform(nn_preds)
+        y_train_returns = scaler_labels.inverse_transform(Y_train)
+        print("mean of preds", np.mean(nn_preds_returns, axis=0))
+        print("std dev of preds", np.std(nn_preds_returns, axis=0))
+        print("mean of train_y", np.mean(y_train_returns, axis=0))
+        print("std dev of train_y", np.std(y_train_returns, axis=0))
+
     # calculate mean and std dev of each metric, across the samples
-    l1,l2,l3,l4 = calculate_performance_across_samples(num_fwd_timeframes, train_rmse_list, train_rankcorrels_list,
-                                                       test_rmse_list, test_rankcorrels_list, "", "Vanilla FFNN")
+    l1,l2,l3,l4,results_mean,results_std = calculate_performance_across_samples(num_fwd_timeframes, train_rmse_list, train_rankcorrels_list,
+                                                       test_rmse_list, test_rankcorrels_list, "", "Vanilla FFNN",results_mean,results_std)
 
     # update dataframes with resuls for this model
     df_train_rmse, df_train_rc, df_test_rmse, df_test_rc = update_results_df(l1, l2, l3, l4,
                                                                              df_train_rmse, df_train_rc,
                                                                              df_test_rmse, df_test_rc)
 
-    return df_train_rmse, df_train_rc, df_test_rmse, df_test_rc
+    return df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,results_mean,results_std
 
 
-def train_vanilla_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_labels, test_start_date,train_end_date,
-                              num_samples,num_epochs,lr,model_type,num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc):
+def train_vanilla_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled,scaler_labels, test_start_date,train_end_date,
+                              num_samples,num_epochs,lr,model_type,num_fwd_timeframes,df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,data_path,results_mean,results_std):
 
     # Passing to DataLoader
-    batch_size = 111
+    batch_size = 128
+    # split some of the train to use as validation
+    X_train_all = X_train.copy()
+    Y_train_all = Y_train.copy()
+    len_train = X_train.shape[0]
+    val_size = int(0.2*len_train)
+    X_val = X_train[-val_size:]
+    Y_val = Y_train[-val_size:]
+    X_train = X_train[:-val_size].copy()
+    Y_train = Y_train[:-val_size].copy()
+
+    # loaders
     train_tensor = data_utils.TensorDataset(torch.tensor(np.expand_dims(X_train, axis=2)).float(), torch.tensor(Y_train).float())
-    train_loader = data_utils.DataLoader(train_tensor, batch_size=batch_size, shuffle=True)
-    test_tensor = data_utils.TensorDataset(torch.tensor(np.expand_dims(X_test, axis=2)).float(), torch.tensor(Y_test.values).float())
-    test_loader = data_utils.DataLoader(test_tensor, batch_size=batch_size, shuffle=True)
+    train_loader = data_utils.DataLoader(train_tensor, batch_size=batch_size, shuffle=True, drop_last=True)
+    val_tensor = data_utils.TensorDataset(torch.tensor(np.expand_dims(X_val, axis=2)).float(), torch.tensor(Y_val).float())
+    val_loader = data_utils.DataLoader(val_tensor, batch_size=batch_size, shuffle=True, drop_last=True)
+    test_tensor = data_utils.TensorDataset(torch.tensor(np.expand_dims(X_test, axis=2)).float(), torch.tensor(Y_test).float())
+    test_loader = data_utils.DataLoader(test_tensor, batch_size=batch_size, shuffle=True, drop_last=True)
 
     # Dimensions
     input_dim = 1
-    hidden_dim = 32
+
     output_dim = num_fwd_timeframes
 
     # Model
     if model_type == 'rnn':
+        hidden_dim = 32
         models = [
             VanillaRNN(
                 input_dim=input_dim,
@@ -320,6 +315,7 @@ def train_vanilla_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_
             for s in range(num_samples)
         ]
     elif model_type == 'lstm':
+        hidden_dim = 8
         models = [
             VanillaLSTM(
                 input_dim=input_dim,
@@ -342,6 +338,12 @@ def train_vanilla_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_
     train_rankcorrels_list = []
     test_rmse_list = []
     test_rankcorrels_list = []
+
+    # make new csv
+    col_header_csv_ = ['epoch', 'train RMSE', 'val RMSE','test RMSE']
+    with open(data_path + 'vanilla_' + model_type + '_epoch_loss.csv', 'w', newline='') as myfile:
+        wr = csv.writer(myfile)
+        wr.writerow(col_header_csv_)
 
     for sample in range(0, num_samples):
 
@@ -385,62 +387,112 @@ def train_vanilla_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_
                 epoch_loss += loss.detach().numpy()
 
             # Validation
+            val_rmse = evaluate_vanilla(model, val_loader)
             test_rmse = evaluate_vanilla(model, test_loader)
             train_rmse = torch.sqrt(metric.compute())
 
+            # output to csv
+            fields = [epoch,train_rmse.detach().numpy(),val_rmse.detach().numpy(),test_rmse.detach().numpy()]
+            with open(data_path + 'vanilla_' + model_type + '_epoch_loss.csv', 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(fields)
+
             # Update the progress bar
             pbar.set_description(
-                f"Train Loss: {epoch_loss: .4f} RMSE: {train_rmse:.4f} Test RMSE: {test_rmse:.4f}"
+                f"Train Loss: {epoch_loss: .4f} Train RMSE: {train_rmse:.4f} Val RMSE: {val_rmse:.4f}Test RMSE: {test_rmse:.4f}"
             )
 
         # output preds
-        nn_preds_train = model(torch.tensor(np.expand_dims(X_train, axis=2)).float())
+        nn_preds_train = model(torch.tensor(np.expand_dims(X_train_all, axis=2)).float())
         nn_preds_train = nn_preds_train.cpu().detach().numpy()
+        print(np.percentile(nn_preds_train,[25,50,75]),np.percentile(Y_train,[25,50,75]))
         nn_preds = model(torch.tensor(np.expand_dims(X_test, axis=2)).float())
         nn_preds = nn_preds.cpu().detach().numpy()
-        print("mean of preds", np.mean(nn_preds))
-        print("std dev of preds", np.std(nn_preds))
+
+        ###########################################
+        # look at mean and std dev of predictions #
+        ###########################################
+        nn_preds_returns = scaler_labels.inverse_transform(nn_preds)
+        y_train_returns = scaler_labels.inverse_transform(Y_train)
+        print("mean of preds", np.mean(nn_preds_returns, axis=0))
+        print("std dev of preds", np.std(nn_preds_returns, axis=0))
+        print("mean of train_y", np.mean(y_train_returns, axis=0))
+        print("std dev of train_y", np.std(y_train_returns, axis=0))
 
         # evaluate preds for this sample
         test_rmse_list, test_rankcorrels_list, train_rmse_list, train_rankcorrels_list = \
-            calculate_performance_this_sample(scaler_labels, nn_preds, nn_preds_train, Y_test, Y_train,
+            calculate_performance_this_sample(scaler_labels, nn_preds, nn_preds_train, Y_test, Y_test_unscaled,Y_train_all,
                                               num_fwd_timeframes, df_data,
                                               test_start_date, train_end_date, test_rmse_list, test_rankcorrels_list,
                                               train_rmse_list, train_rankcorrels_list)
 
+    ##############################################
+    # output convergence for train/val/test RMSE #
+    ##############################################
+    df_convergence = pd.read_csv(data_path+'vanilla_'+model_type+'_epoch_loss.csv')
+    # 3 line charts
+    fig, ax = plt.subplots(1, 3,figsize=(10, 3))
+    ax = ax.ravel()
+    graphs = [['train RMSE','Train','blue'],['val RMSE','Validation','green'],['test RMSE','Test','red']]
+    for idx, ax in enumerate(ax):
+        current_graph = graphs[idx]
+        ax.plot(list(range(1, num_epochs + 1)), df_convergence.groupby('epoch')[current_graph[0]].mean(), label=current_graph[1],color=current_graph[2])
+        ax.set_xlabel('Epoch')
+        ax.legend(loc='upper right')
+        ax.set_ylabel('RMSE')
+    plt.tight_layout(pad=1.0)
+    plt.savefig(data_path + 'convergence_vanilla_' + model_type + '.png')
+    plt.close(fig)
+
     # calculate mean and std dev of each metric, across the samples
-    l1, l2, l3, l4 = calculate_performance_across_samples(num_fwd_timeframes, train_rmse_list, train_rankcorrels_list,
-                                                          test_rmse_list, test_rankcorrels_list, model_type, "Vanilla")
+    l1, l2, l3, l4,results_mean,results_std = calculate_performance_across_samples(num_fwd_timeframes, train_rmse_list, train_rankcorrels_list,
+                                                          test_rmse_list, test_rankcorrels_list, model_type, "Vanilla",results_mean,results_std)
 
     # update dataframes with resuls for this model
     df_train_rmse, df_train_rc, df_test_rmse, df_test_rc = update_results_df(l1, l2, l3, l4,
                                                                              df_train_rmse, df_train_rc,
                                                                              df_test_rmse, df_test_rc)
 
-    return df_train_rmse, df_train_rc, df_test_rmse, df_test_rc
+    return df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,results_mean,results_std
 
 
-def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_labels, test_start_date,train_end_date,
+def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_unscaled,scaler_labels, test_start_date,train_end_date,
                             num_samples,num_epochs,lr,model_type,num_fwd_timeframes,df_train_rmse, df_train_rc,
-                            df_test_rmse, df_test_rc,data_path):
+                            df_test_rmse, df_test_rc,data_path,results_mean,results_std):
 
     # Passing to DataLoader
-    batch_size = 111
+    batch_size = 128
+    # split some of the train to use as validation
+    X_train_all = X_train.copy()
+    Y_train_all = Y_train.copy()
+    len_train = X_train.shape[0]
+    val_size = int(0.2*len_train)
+    X_val = X_train[-val_size:]
+    Y_val = Y_train[-val_size:]
+    X_train = X_train[:-val_size].copy()
+    Y_train = Y_train[:-val_size].copy()
+
+    # loaders
     train_tensor = data_utils.TensorDataset(torch.tensor(np.expand_dims(X_train, axis=2)).float(), torch.tensor(Y_train).float())
-    train_loader = data_utils.DataLoader(train_tensor, batch_size=batch_size, shuffle=True)
+    train_loader = data_utils.DataLoader(train_tensor, batch_size=batch_size, shuffle=True, drop_last=True)
+    val_tensor = data_utils.TensorDataset(torch.tensor(np.expand_dims(X_val, axis=2)).float(), torch.tensor(Y_val).float())
+    val_loader = data_utils.DataLoader(val_tensor, batch_size=batch_size, shuffle=True, drop_last=True)
+    test_tensor = data_utils.TensorDataset(torch.tensor(np.expand_dims(X_test, axis=2)).float(), torch.tensor(Y_test).float())
+    test_loader = data_utils.DataLoader(test_tensor, batch_size=batch_size, shuffle=True, drop_last=True)
 
     # Dimensions
     input_dim = 1
-    hidden_dim = 32
     output_dim = num_fwd_timeframes
 
     # Model
     if model_type == 'rnn':
+        hidden_dim = 32
         model = BayesRNN(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
             output_dim=output_dim)
     elif model_type == 'lstm':
+        hidden_dim = 8
         model = BayesLSTM(
                 input_dim=input_dim,
                 hidden_dim=hidden_dim,
@@ -463,12 +515,53 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_la
     model.train()
     sampling_loss = MarkovSamplingLoss(model, samples=num_samples)
 
+    # print("starting vols...")
+    # print("avg weight vol, w_ih, w_hh, w_ho:",
+    #       round(math.log(1 + math.exp(np.mean(model.w_ih.weight_rho.cpu().detach().numpy()[0]))),3),
+    #       round(math.log(1 + math.exp(np.mean(model.w_hh.weight_rho.cpu().detach().numpy()[0]))),3),
+    #       round(math.log(1 + math.exp(np.mean(model.w_ho.weight_rho.cpu().detach().numpy()[0]))),3)
+    #       )
+    # print("avg bias vol  , w_ih, w_hh, w_ho:",
+    #       round(math.log(1 + math.exp(np.mean(model.w_ih.bias_rho.cpu().detach().numpy()[0]))),3),
+    #       round(math.log(1 + math.exp(np.mean(model.w_hh.bias_rho.cpu().detach().numpy()[0]))), 3),
+    #       round(math.log(1 + math.exp(np.mean(model.w_ho.bias_rho.cpu().detach().numpy()[0]))), 3)
+    #       )
+    #
+    # w_ih_wgt = np.mean(np.abs(model.w_ih.weight_mu.cpu().detach().numpy()[0]))
+    # w_hh_wgt = np.mean(np.abs(model.w_hh.weight_mu.cpu().detach().numpy()[0]))
+    # w_ho_wgt = np.mean(np.abs(model.w_ho.weight_mu.cpu().detach().numpy()[0]))
+    # print("weights:",w_ih_wgt,w_hh_wgt,w_ho_wgt)
+    # w_ih_bias = np.mean(np.abs(model.w_ih.bias_mu.cpu().detach().numpy()[0]))
+    # w_hh_bias = np.mean(np.abs(model.w_hh.bias_mu.cpu().detach().numpy()[0]))
+    # w_ho_bias = np.mean(np.abs(model.w_ho.bias_mu.cpu().detach().numpy()[0]))
+    # print("biases",w_ih_bias,w_hh_bias,w_ho_bias)
+    # print("LLhood variance")
+    # print(model.llhood_var.cpu().detach().numpy()[0])
+
+    # Each Epoch: Draw NN params from var distr,
+    #   Calc loss with:
+    #       Plug in drawn NN params into var distr
+    #       Plug in drawn BB params into prior distr(var distr & prior & likelihood), calc gradients and update var params
+
+    # make new csv
+    col_header_csv_ = ['epoch','log_var_posterior','neg_log_prior','neg_log_likelihood','train RMSE','val RMSE','test RMSE']
+    with open(data_path+'bayes_'+model_type+'_epoch_loss.csv', 'w', newline='') as myfile:
+        wr = csv.writer(myfile)
+        wr.writerow(col_header_csv_)
+
+    # Early stopping
+    patience = 10
+    trigger_times = 0
+    list_mse = []
 
     for epoch in pbar:
 
         # Reset metric
         metric.reset()
         epoch_loss = 0
+        epoch_logvarpost = 0
+        epoch_log_prior = 0
+        epoch_llhood = 0
 
         for X, y in train_loader:
 
@@ -476,7 +569,7 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_la
             model.zero_grad()
 
             # Compute sampling loss
-            loss, outputs = sampling_loss(X, y, num_batches)
+            loss, outputs, term1, term2, term3 = sampling_loss(X, y, num_batches)
 
             # Backpropagation
             loss.backward(retain_graph=True)
@@ -487,14 +580,61 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_la
 
             # Total loss
             epoch_loss += loss.detach().numpy()
+            epoch_logvarpost += term1.detach().numpy()
+            epoch_log_prior += term2.detach().numpy()
+            epoch_llhood += term3.detach().numpy()
 
         # Validation
+        val_rmse_mean, val_rmse_std = evaluate_bayes(model, sampling_loss, val_loader)
+        test_rmse_mean, test_rmse_std = evaluate_bayes(model, sampling_loss, test_loader)
         train_rmse = torch.sqrt(metric.compute())
+        list_mse.append(val_rmse_mean)
+
+        # output to csv
+        fields = [epoch,epoch_logvarpost, epoch_log_prior, epoch_llhood,train_rmse.detach().numpy(),val_rmse_mean,test_rmse_mean]
+        with open(data_path+'bayes_'+model_type+'_epoch_loss.csv', 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(fields)
+
+        # Early stopping
+        if val_rmse_mean > min(list_mse):
+            trigger_times += 1
+            if trigger_times > patience:
+                print('Early stopping!\n')
+                break
+        else:
+            trigger_times = 0
+
+        # print('grad:', model.w_ih.weight_rho.grad.cpu().detach().numpy()[0][0])
+        print('trigger times:',trigger_times)
 
         # Update the progress bar
         pbar.set_description(
-            f"Train Loss: {epoch_loss: .4f} RMSE: {train_rmse:.4f}"
+            f"Train Loss: {epoch_loss: .4f} Train RMSE: {train_rmse:.4f} Val RMSE: {val_rmse_mean:.4f} Test RMSE: {test_rmse_mean:.4f}"
         )
+
+        # print("after epoch vols...")
+        # print("avg weight vol, w_ih, w_hh, w_ho:",
+        #       round(math.log(1 + math.exp(np.mean(model.w_ih.weight_rho.cpu().detach().numpy()[0]))), 3),
+        #       round(math.log(1 + math.exp(np.mean(model.w_hh.weight_rho.cpu().detach().numpy()[0]))), 3),
+        #       round(math.log(1 + math.exp(np.mean(model.w_ho.weight_rho.cpu().detach().numpy()[0]))), 3)
+        #       )
+        # print("avg bias vol  , w_ih, w_hh, w_ho:",
+        #       round(math.log(1 + math.exp(np.mean(model.w_ih.bias_rho.cpu().detach().numpy()[0]))), 3),
+        #       round(math.log(1 + math.exp(np.mean(model.w_hh.bias_rho.cpu().detach().numpy()[0]))), 3),
+        #       round(math.log(1 + math.exp(np.mean(model.w_ho.bias_rho.cpu().detach().numpy()[0]))), 3)
+        #       )
+        # w_ih_wgt = np.mean(np.abs(model.w_ih.weight_mu.cpu().detach().numpy()[0]))
+        # w_hh_wgt = np.mean(np.abs(model.w_hh.weight_mu.cpu().detach().numpy()[0]))
+        # w_ho_wgt = np.mean(np.abs(model.w_ho.weight_mu.cpu().detach().numpy()[0]))
+        # print("weights:", w_ih_wgt, w_hh_wgt, w_ho_wgt)
+        # w_ih_bias = np.mean(np.abs(model.w_ih.bias_mu.cpu().detach().numpy()[0]))
+        # w_hh_bias = np.mean(np.abs(model.w_hh.bias_mu.cpu().detach().numpy()[0]))
+        # w_ho_bias = np.mean(np.abs(model.w_ho.bias_mu.cpu().detach().numpy()[0]))
+        # print("biases", w_ih_bias, w_hh_bias, w_ho_bias)
+        # print("LLhood variance")
+        # print(model.llhood_var.cpu().detach().numpy()[0])
+
 
     # we have now finished training
     model.training = False
@@ -505,17 +645,40 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_la
     test_rmse_list = []
     test_rankcorrels_list = []
 
+    # output preds
+    nn_preds_train = model(torch.tensor(np.expand_dims(X_train_all, axis=2)).float(),testing=True).cpu().detach().numpy()
+    print(np.percentile(nn_preds_train, [25, 50, 75]), np.percentile(Y_train, [25, 50, 75]))
+
     ###########################################
     # look at mean and std dev of predictions #
     ###########################################
-    nn_preds = model(torch.tensor(np.expand_dims(X_test, axis=2)).float()).cpu().detach().numpy()
+    nn_preds = model(torch.tensor(np.expand_dims(X_test, axis=2)).float(),testing=True).cpu().detach().numpy()
     # print("mean of preds", np.mean(nn_preds,axis=0))
     # print("std dev of preds",np.std(nn_preds,axis=0))
     nn_preds_returns = scaler_labels.inverse_transform(nn_preds)
+    y_train_returns = scaler_labels.inverse_transform(Y_train)
     print("mean of preds", np.mean(nn_preds_returns, axis=0))
     print("std dev of preds", np.std(nn_preds_returns, axis=0))
-    print("mean of test_y", np.mean(Y_test, axis=0))
-    print("std dev of test_y", np.std(Y_test, axis=0))
+    print("mean of train_y", np.mean(y_train_returns, axis=0))
+    print("std dev of train_y", np.std(y_train_returns, axis=0))
+
+    ##############################################
+    # output convergence for train/val/test RMSE #
+    ##############################################
+    df_convergence = pd.read_csv(data_path+'bayes_'+model_type+'_epoch_loss.csv')
+    # 3 line charts
+    fig, ax = plt.subplots(1, 3,figsize=(10, 3))
+    ax = ax.ravel()
+    graphs = [['train RMSE','Train','blue'],['val RMSE','Validation','green'],['test RMSE','Test','red']]
+    for idx, ax in enumerate(ax):
+        current_graph = graphs[idx]
+        ax.plot(list(range(1, len(df_convergence) + 1)), df_convergence.groupby('epoch')[current_graph[0]].mean(), label=current_graph[1],color=current_graph[2])
+        ax.set_xlabel('Epoch')
+        ax.legend(loc='upper right')
+        ax.set_ylabel('RMSE')
+    plt.tight_layout(pad=1.0)
+    plt.savefig(data_path + 'convergence_bayes_' + model_type + '.png')
+    plt.close(fig)
 
     #########
     # plots #
@@ -525,31 +688,44 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_la
     for i in range(1,nn_preds_returns.shape[1]+1):
         df_test['pred'+str(i)] = nn_preds_returns[:,i-1]
 
+    # for each output pred
     for u in range(0,nn_preds_returns.shape[1]):
         y_pred_list = []
-        for i in range(100):
-            y_pred = model(torch.tensor(np.expand_dims(X_test, axis=2)).float(),sampling=True).cpu().detach().numpy()[:,u]
+        for i in range(500):
+            y_pred = model(torch.tensor(np.expand_dims(X_test, axis=2)).float(),sampling=True,testing=True).cpu().detach().numpy()[:,u]
             y_pred_list.append(y_pred)
         y_mean = np.expand_dims(np.mean(y_pred_list, axis=0),axis=1)
         y_sigma = np.expand_dims(np.std(y_pred_list, axis=0),axis=1)
+        y_percentile5 = np.expand_dims(np.percentile(y_pred_list,5, axis=0),axis=1)
+        y_percentile95 = np.expand_dims(np.percentile(y_pred_list,95, axis=0),axis=1)
         if u == 0:
             y_means = y_mean.copy()
             y_sigmas = y_sigma.copy()
+            y_percentiles5 = y_percentile5.copy()
+            y_percentiles95 = y_percentile95.copy()
         else:
             y_means = np.concatenate((y_means, y_mean),axis=1)
             y_sigmas = np.concatenate((y_sigmas, y_sigma), axis=1)
+            y_percentiles5 = np.concatenate((y_percentiles5, y_percentile5), axis=1)
+            y_percentiles95 = np.concatenate((y_percentiles95, y_percentile95), axis=1)
 
     y_sigmas = scaler_labels.inverse_transform(y_sigmas)
+    y_percentiles5 = scaler_labels.inverse_transform(y_percentiles5)
+    y_percentiles95 = scaler_labels.inverse_transform(y_percentiles95)
     for i in range(1,nn_preds_returns.shape[1]+1):
         df_test['std'+str(i)] = y_sigmas[:,i-1]
+        df_test['percentile5_' + str(i)] = y_percentiles5[:, i - 1]
+        df_test['percentile95_' + str(i)] = y_percentiles95[:, i - 1]
 
     for i in range(1,nn_preds_returns.shape[1]+1):
         df_test['pred_close'+str(i)] = df_test['close']*(1+df_test['pred'+str(i)])
-        df_test['pred_close_lb' + str(i)] = df_test['close'] * (1 - df_test['std' + str(i)])
-        df_test['pred_close_ub' + str(i)] = df_test['close'] * (1 + df_test['std' + str(i)])
+        # df_test['pred_close_lb' + str(i)] = df_test['close'] * (1 - 1.96*df_test['std' + str(i)])
+        # df_test['pred_close_ub' + str(i)] = df_test['close'] * (1 + 1.96*df_test['std' + str(i)])
+        df_test['pred_close_lb' + str(i)] = df_test['close']*(1+df_test['percentile5_'+str(i)])
+        df_test['pred_close_ub' + str(i)] = df_test['close']*(1+df_test['percentile95_'+str(i)])
 
-    # 3 line charts
-    dict_ymax = {'sp500':4600,'nasdaq':15500, 'asx200':7700, 'nikkei225':31000, 'dax':18000, 'eurostoxx50':4400}
+    # 3 line charts, 6 times
+    dict_ymax = {'sp500':4800,'nasdaq':16000, 'asx200':7700, 'nikkei225':31000, 'dax':18000, 'eurostoxx50':4700}
     for instr_ in ['sp500', 'nasdaq', 'asx200', 'nikkei225', 'dax', 'eurostoxx50']:
         f, a = plt.subplots(1, 3,figsize=(10, 4))
         a = a.ravel()
@@ -575,67 +751,96 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, scaler_la
             if idx != 0:
                 ax.set_yticks([])
         plt.tight_layout(pad=1.0)
-        plt.savefig(data_path + 'progression_'+instr_+'.png')
+        plt.savefig(data_path + 'progression_'+instr_+model_type+'.png')
+        plt.close(fig)
 
-    # df_test['actual5'] = df_test.groupby('instr')['close'].shift(-5)
-    # df_test['pred_close5'] = df_test['close']*(1+df_test['pred5'])
-    # df_ = df_test[(df_test['instr']=='sp500') & (df_test['actual5'].isnull() == False)].iloc[::5,:].copy()
-    # df_['cumprod_pred5'] = (1+df_['pred5']).cumprod()
-    # df_['pred_cum_close5'] = df_['close']*df_['cumprod_pred5']
-    # df_['pred_cum_close5_lowerbound'] = df_['pred_close5']*(1-df_['std5'])
-    # df_['pred_cum_close5_lupperbound'] = df_['pred_close5'] * (1 + df_['std5'])
-    #
-    # plt.plot(df_['date_time'], df_['pred_close5'], label='Prediction')
-    # plt.plot(df_['date_time'], df_['actual5'], label='Actual')
-    # plt.plot(df_['date_time'], df_['pred_cum_close5_lowerbound'], label='Uncertainty', color='blue', linestyle='--', alpha=0.25)
-    # plt.plot(df_['date_time'], df_['pred_cum_close5_lupperbound'], color='blue', linestyle='--', alpha=0.25)
-    # plt.fill_between(df_['date_time'], df_['pred_cum_close5_lowerbound'], df_['pred_cum_close5_lupperbound'], facecolor='grey', alpha=0.2)
-    #
-    # df_test['actual1'] = df_test.groupby('instr')['close'].shift(-1)
-    # df_test['pred_close1'] = df_test['close']*(1+df_test['pred1'])
-    # df_ = df_test[(df_test['instr']=='asx200') & (df_test['actual1'].isnull() == False)].iloc[-30:,:].copy()
-    # df_['cumprod_pred1'] = (1+df_['pred1']).cumprod()
-    # df_['pred_cum_close1'] = df_['close']*df_['cumprod_pred1']
-    # df_['pred_cum_close1_lowerbound'] = df_['pred_close1']*(1-df_['std1'])
-    # df_['pred_cum_close1_lupperbound'] = df_['pred_close1'] * (1 + df_['std1'])
-    #
-    # plt.plot(df_['date_time'], df_['pred_close1'], label='Prediction')
-    # plt.plot(df_['date_time'], df_['actual1'], label='Actual')
-    # plt.plot(df_['date_time'], df_['pred_cum_close1_lowerbound'], label='Uncertainty', color='blue', linestyle='--', alpha=0.25)
-    # plt.plot(df_['date_time'], df_['pred_cum_close1_lupperbound'], color='blue', linestyle='--', alpha=0.25)
-    # plt.fill_between(df_['date_time'], df_['pred_cum_close1_lowerbound'], df_['pred_cum_close1_lupperbound'], facecolor='grey', alpha=0.2)
+    ##########################################
+    # Full test set - 5 step ahead for SP500 #
+    ##########################################
+    # S&P 500, DAX
+    df_test['actual5'] = df_test.groupby('instr')['close'].shift(-5)
+    df_test['pred_close5'] = df_test['close']*(1+df_test['pred5'])
+    f, a = plt.subplots(1, 2,figsize=(10, 4))
+    a = a.ravel()
+    list_instrs = ['sp500','dax']
+    name_dict_ = {'sp500':'S&P 500','dax':'DAX'}
+    for idx, ax in enumerate(a):
+        instr_ = list_instrs[idx]
+        df_ = df_test[(df_test['instr']==instr_) & (df_test['actual5'].isnull() == False)].iloc[::5,:].copy()
+        df_ = df_.reset_index(drop=True)
+        ax.plot(df_.index*5, df_['pred_close5'], label='Prediction')
+        ax.plot(df_.index*5, df_['actual5'], label='Actual')
+        ax.plot(df_.index*5, df_['pred_close_lb5'], label='Uncertainty', color='blue', linestyle='--', alpha=0.25)
+        ax.plot(df_.index*5, df_['pred_close_ub5'], color='blue', linestyle='--', alpha=0.25)
+        ax.fill_between(df_.index*5, df_['pred_close_lb5'], df_['pred_close_ub5'], facecolor='grey', alpha=0.2)
+        ax.set_xlabel('Time (weeks)')
+        ax.set_title(name_dict_[instr_])
+        if idx == 0:
+            ax.legend(loc='upper left')
+        ax.set_ylabel('Closing price')
+    plt.tight_layout(pad=1.0)
+    plt.savefig(data_path + 'full_testset_preds_5step_' + model_type + '.png')
+    plt.close(fig)
+
+    ##########################################
+    # Full test set - 1 step ahead for SP500 #
+    ##########################################
+    # S&P 500, DAX
+    df_test['actual1'] = df_test.groupby('instr')['close'].shift(-1)
+    df_test['pred_close1'] = df_test['close']*(1+df_test['pred1'])
+    f, a = plt.subplots(1, 2,figsize=(10, 4))
+    a = a.ravel()
+    list_instrs = ['sp500','dax']
+    name_dict_ = {'sp500':'S&P 500','dax':'DAX'}
+    for idx, ax in enumerate(a):
+        instr_ = list_instrs[idx]
+        df_ = df_test[(df_test['instr']==instr_) & (df_test['actual1'].isnull() == False)].iloc[-50:,:].copy()
+        df_ = df_.reset_index(drop=True)
+        ax.plot(df_.index, df_['pred_close1'], label='Prediction')
+        ax.plot(df_.index, df_['actual1'], label='Actual')
+        ax.plot(df_.index, df_['pred_close_lb1'], label='Uncertainty', color='blue', linestyle='--', alpha=0.25)
+        ax.plot(df_.index, df_['pred_close_ub1'], color='blue', linestyle='--', alpha=0.25)
+        ax.fill_between(df_.index, df_['pred_close_lb1'], df_['pred_close_ub1'], facecolor='grey', alpha=0.2)
+        ax.set_xlabel('Time (weeks)')
+        ax.set_title(name_dict_[instr_])
+        if idx == 0:
+            ax.legend(loc='upper left')
+        ax.set_ylabel('Closing price')
+    plt.tight_layout(pad=1.0)
+    plt.savefig(data_path + 'full_testset_preds_1step_' + model_type + '.png')
+    plt.close(fig)
 
     for sample in range(0, num_samples):
 
         # output preds, don't sample of the first set.
         if sample == 0:
-            nn_preds_train = model(torch.tensor(np.expand_dims(X_train, axis=2)).float())
+            nn_preds_train = model(torch.tensor(np.expand_dims(X_train_all, axis=2)).float(),testing=True)
             nn_preds_train = nn_preds_train.cpu().detach().numpy()
-            nn_preds = model(torch.tensor(np.expand_dims(X_test, axis=2)).float())
+            nn_preds = model(torch.tensor(np.expand_dims(X_test, axis=2)).float(),testing=True)
             nn_preds = nn_preds.cpu().detach().numpy()
         else:
-            nn_preds_train = model(torch.tensor(np.expand_dims(X_train, axis=2)).float(), sampling=True)
+            nn_preds_train = model(torch.tensor(np.expand_dims(X_train_all, axis=2)).float(), sampling=True,testing=True)
             nn_preds_train = nn_preds_train.cpu().detach().numpy()
-            nn_preds = model(torch.tensor(np.expand_dims(X_test, axis=2)).float(), sampling=True)
+            nn_preds = model(torch.tensor(np.expand_dims(X_test, axis=2)).float(), sampling=True,testing=True)
             nn_preds = nn_preds.cpu().detach().numpy()
 
         # evaluate preds for this sample
         test_rmse_list, test_rankcorrels_list, train_rmse_list, train_rankcorrels_list = \
-            calculate_performance_this_sample(scaler_labels, nn_preds, nn_preds_train, Y_test, Y_train,
+            calculate_performance_this_sample(scaler_labels, nn_preds, nn_preds_train, Y_test, Y_test_unscaled,Y_train_all,
                                               num_fwd_timeframes, df_data,
                                               test_start_date, train_end_date, test_rmse_list, test_rankcorrels_list,
                                               train_rmse_list, train_rankcorrels_list)
 
     # calculate mean and std dev of each metric, across the samples
-    l1,l2,l3,l4 = calculate_performance_across_samples(num_fwd_timeframes, train_rmse_list, train_rankcorrels_list,
-                                                       test_rmse_list, test_rankcorrels_list, model_type, "Bayes")
+    l1,l2,l3,l4,results_mean,results_std = calculate_performance_across_samples(num_fwd_timeframes, train_rmse_list, train_rankcorrels_list,
+                                                       test_rmse_list, test_rankcorrels_list, model_type, "Bayes",results_mean,results_std)
 
     # update dataframes with resuls for this model
     df_train_rmse, df_train_rc, df_test_rmse, df_test_rc = update_results_df(l1, l2, l3, l4,
                                                                              df_train_rmse, df_train_rc,
                                                                              df_test_rmse, df_test_rc)
 
-    return df_train_rmse, df_train_rc, df_test_rmse, df_test_rc
+    return df_train_rmse, df_train_rc, df_test_rmse, df_test_rc,results_mean,results_std
 
 
 def evaluate_vanilla(model, dataloader):
@@ -661,14 +866,14 @@ def update_results_df(l1, l2, l3, l4, df_train_rmse, df_train_rc, df_test_rmse, 
     return df_train_rmse, df_train_rc, df_test_rmse, df_test_rc
 
 
-def calculate_performance_this_sample(scaler_labels,nn_preds,nn_preds_train,Y_test,Y_train,num_fwd_timeframes,df_data,
+def calculate_performance_this_sample(scaler_labels,nn_preds,nn_preds_train,Y_test,Y_test_unscaled,Y_train,num_fwd_timeframes,df_data,
                                       test_start_date,train_end_date,test_rmse_list, test_rankcorrels_list,
                                       train_rmse_list, train_rankcorrels_list):
     # evaluate preds
     nn_preds_returns = scaler_labels.inverse_transform(nn_preds)
     nn_preds_train_returns = scaler_labels.inverse_transform(nn_preds_train)
     # evaluate preds
-    Y_test_returns = Y_test.values
+    Y_test_returns = Y_test_unscaled.values
     Y_train_returns = scaler_labels.inverse_transform(Y_train)
     rmse = []
     rmse_train = []
@@ -702,7 +907,7 @@ def calculate_performance_this_sample(scaler_labels,nn_preds,nn_preds_train,Y_te
 
 
 def calculate_performance_across_samples(num_fwd_timeframes,train_rmse_list,train_rankcorrels_list,test_rmse_list,
-                                         test_rankcorrels_list,model_type,model_name):
+                                         test_rankcorrels_list,model_type,model_name,results_mean,results_std):
     train_rmse_mean = []
     train_rmse_std = []
     train_rc_mean = []
@@ -712,14 +917,14 @@ def calculate_performance_across_samples(num_fwd_timeframes,train_rmse_list,trai
     test_rc_mean = []
     test_rc_std = []
     for i in range(0, num_fwd_timeframes):
-        train_rmse_mean.append(round(np.array(train_rmse_list)[0, i], 4))
-        train_rmse_std.append(round(np.array(train_rmse_list)[:, i].std(), 4))
-        train_rc_mean.append(round(np.array(train_rankcorrels_list)[0, i], 4))
-        train_rc_std.append(round(np.array(train_rankcorrels_list)[:, i].std(), 4))
-        test_rmse_mean.append(round(np.array(test_rmse_list)[0, i], 4))
-        test_rmse_std.append(round(np.array(test_rmse_list)[:, i].std(), 4))
-        test_rc_mean.append(round(np.array(test_rankcorrels_list)[0, i], 4))
-        test_rc_std.append(round(np.array(test_rankcorrels_list)[:, i].std(), 4))
+        train_rmse_mean.append(round(np.array(train_rmse_list)[0, i], 5))
+        train_rmse_std.append(round(np.array(train_rmse_list)[:, i].std(), 5))
+        train_rc_mean.append(round(np.array(train_rankcorrels_list)[0, i], 5))
+        train_rc_std.append(round(np.array(train_rankcorrels_list)[:, i].std(), 5))
+        test_rmse_mean.append(round(np.array(test_rmse_list)[0, i], 5))
+        test_rmse_std.append(round(np.array(test_rmse_list)[:, i].std(), 5))
+        test_rc_mean.append(round(np.array(test_rankcorrels_list)[0, i], 5))
+        test_rc_std.append(round(np.array(test_rankcorrels_list)[:, i].std(), 5))
 
     print("------across all samples, "+model_name, model_type, ": train RMSE, mean:", train_rmse_mean)
     print("------across all samples, "+model_name, model_type, ": train RMSE, std:", train_rmse_std)
@@ -735,12 +940,51 @@ def calculate_performance_across_samples(num_fwd_timeframes,train_rmse_list,trai
     l3 = []
     l4 = []
     for i in range(0, len(train_rmse_mean)):
-        l1.append(format(train_rmse_mean[i], '.4f') + ' (+/-' + format(train_rmse_std[i], '.3f') + ')')
-        l2.append(format(train_rc_mean[i], '.4f') + ' (+/-' + format(train_rc_std[i], '.3f') + ')')
-        l3.append(format(test_rmse_mean[i], '.4f') + ' (+/-' + format(test_rmse_std[i], '.3f') + ')')
-        l4.append(format(test_rc_mean[i], '.4f') + ' (+/-' + format(test_rc_std[i], '.3f') + ')')
+        l1.append(format(train_rmse_mean[i], '.4f') + ' (+/-' + format(1.96*train_rmse_std[i], '.4f') + ')')
+        l2.append(format(train_rc_mean[i], '.4f') + ' (+/-' + format(1.96*train_rc_std[i], '.4f') + ')')
+        l3.append(format(test_rmse_mean[i], '.4f') + ' (+/-' + format(1.96*test_rmse_std[i], '.4f') + ')')
+        l4.append(format(test_rc_mean[i], '.4f') + ' (+/-' + format(1.96*test_rc_std[i], '.4f') + ')')
 
-    return l1, l2, l3, l4
+    results_mean[0].append(train_rmse_mean)
+    results_mean[1].append(train_rc_mean)
+    results_mean[2].append(test_rmse_mean)
+    results_mean[3].append(test_rc_mean)
+    results_std[0].append(train_rmse_std)
+    results_std[1].append(train_rc_std)
+    results_std[2].append(test_rmse_std)
+    results_std[3].append(test_rc_std)
+
+    return l1, l2, l3, l4, results_mean, results_std
+
+
+def evaluate_bayes(model, sampling_loss, dataloader):
+    # MSE Metric
+    metric = [MeanSquaredError() for s in range(sampling_loss.samples)]
+
+    # Number of batches
+    num_batches = len(dataloader)
+
+    # Progress bar
+    # pbar = tqdm(, desc=f"Evaluating {model.__class__.__name__}")
+
+    # Sampler
+    model.eval()
+
+    for batch, (X, y) in enumerate(dataloader):
+
+        # Compute sampling loss
+        outputs = sampling_loss(X, y, num_batches, testing=True)
+
+        # Update metric
+        for s in range(sampling_loss.samples):
+            metric[s].update(outputs[s], y)
+
+    # Compute mse
+    rmse = torch.sqrt(torch.tensor([metric[s].compute() for s in range(sampling_loss.samples)]))
+    rmse_mean = round(float(rmse.mean().numpy()),4)
+    rmse_std = round(float(rmse.std().numpy()),4)
+
+    return rmse_mean, rmse_std
 
 
 if __name__ == "__main__":

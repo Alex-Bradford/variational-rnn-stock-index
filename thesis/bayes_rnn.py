@@ -26,7 +26,12 @@ class BayesRNN(nn.Module):
         self.w_hh = BayesLinear(hidden_dim, hidden_dim)
         self.w_ho = BayesLinear(hidden_dim, output_dim)
 
-    def forward(self, x, sampling=False):
+        # param for var
+        self.llhood_var = nn.Parameter(
+            torch.ones(128,5,requires_grad=False)
+        )
+
+    def forward(self, x, sampling=False, testing=False):
         # Validate input shape
         assert len(x.shape) == 3, f"Expected input to be 3-dim, got {len(x.shape)}"
 
@@ -41,10 +46,10 @@ class BayesRNN(nn.Module):
             x_t = x[:, t, :]
 
             # Hidden state
-            h_t = torch.tanh(self.w_ih(x_t, sampling) + self.w_hh(h_t, sampling))
+            h_t = torch.tanh(self.w_ih(x_t, sampling,testing) + self.w_hh(h_t, sampling,testing))
 
         # Update output
-        o = torch.tanh(self.w_ho(h_t, sampling))
+        o = torch.tanh(self.w_ho(h_t, sampling,testing))
 
         return o
 

@@ -42,7 +42,8 @@ class VanillaLSTM(nn.Module):
 
         # Reshaping the outputs such that it can be fit into the fully connected layer
         out = out[:, -1, :].contiguous().view(-1, self.hidden_dim)
-        out = torch.sigmoid(self.fc(out))
+        # out = torch.sigmoid(self.fc(out))
+        out = self.fc(out)
 
         return out
 

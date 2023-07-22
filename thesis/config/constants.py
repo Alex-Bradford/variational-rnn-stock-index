@@ -1,3 +1,3 @@
 PI = 0.5
-SIGMA1 = 10
-SIGMA2 = 10
+SIGMA1 = 0.5
+SIGMA2 = 0.5

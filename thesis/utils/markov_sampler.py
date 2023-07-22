@@ -10,6 +10,7 @@ class MarkovSamplingLoss(object):
         self.model = model
         self.samples = samples
         self.mse = nn.MSELoss()
+        self.llhood = nn.GaussianNLLLoss(reduction='sum')
 
     def __call__(self, X, y, num_batches, testing=False):
         
@@ -25,7 +26,7 @@ class MarkovSamplingLoss(object):
         # Sample and compute pdfs
         for s in range(self.samples):
 
-            outputs[s] = self.model(X, sampling=True)
+            outputs[s] = self.model(X, sampling=True,testing=testing)
             
             if testing:
                 continue
@@ -37,8 +38,26 @@ class MarkovSamplingLoss(object):
         if testing:
             return outputs
 
+        # print('testing:',testing,'model.training:',self.model.training,'log_prior:',self.model.log_prior())
         # Log prior, variational posterior and likelihood
+        var = torch.ones(batch_size,self.model.output_dim)
         negative_log_likelihood = self.mse(outputs.mean(0), y)
+        negative_log_likelihood2 = self.llhood(outputs.mean(0), y, var)*self.samples
+
+        # fixes:
+        #   Use log likelihood instead of MSE
+        #   Use reduction='sum' in the log likelihood to match the log_var_posterior and log_prior
+        #   multiply the log likelihood by the number of samples, also to match the log_var_posterior and log_prior
+
         loss = (log_variational_posterior - log_prior)/num_batches + negative_log_likelihood
+        loss2 = (log_variational_posterior - log_prior*(num_batches*negative_log_likelihood)) / num_batches
+        loss3 = (log_variational_posterior - log_prior)/num_batches + negative_log_likelihood2
+
+        term1 = (log_variational_posterior)/num_batches
+        term2 = -log_prior/num_batches
+        term3 = negative_log_likelihood2
+
+        # print("loss:",loss)
+        # print("loss2:", loss2)
         
-        return loss, outputs
+        return loss3, outputs, term1,term2,term3
