@@ -36,8 +36,8 @@ def main():
     num_weeks_per_fwd_timeframe = 1
     # calculate train end date
     train_end_date = test_start_date - pd.Timedelta(str(int(num_fwd_timeframes*num_weeks_per_fwd_timeframe)+1)+'w')  # make sure no overlap between train and test
-    num_samples = 100
-    num_epochs = 50
+    num_samples = 5
+    num_epochs = 5
     lr = 0.01
 
     ########
@@ -405,7 +405,6 @@ def train_vanilla_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_
         # output preds
         nn_preds_train = model(torch.tensor(np.expand_dims(X_train_all, axis=2)).float())
         nn_preds_train = nn_preds_train.cpu().detach().numpy()
-        print(np.percentile(nn_preds_train,[25,50,75]),np.percentile(Y_train,[25,50,75]))
         nn_preds = model(torch.tensor(np.expand_dims(X_test, axis=2)).float())
         nn_preds = nn_preds.cpu().detach().numpy()
 
@@ -426,22 +425,44 @@ def train_vanilla_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_
                                               test_start_date, train_end_date, test_rmse_list, test_rankcorrels_list,
                                               train_rmse_list, train_rankcorrels_list)
 
-    ##############################################
-    # output convergence for train/val/test RMSE #
-    ##############################################
+    ####################################################
+    # output horizonal convergence for train/test RMSE #
+    ####################################################
     df_convergence = pd.read_csv(data_path+'vanilla_'+model_type+'_epoch_loss.csv')
     # 3 line charts
-    fig, ax = plt.subplots(1, 3,figsize=(10, 3))
+    fig, ax = plt.subplots(1, 2,figsize=(7, 3))
     ax = ax.ravel()
-    graphs = [['train RMSE','Train','blue'],['val RMSE','Validation','green'],['test RMSE','Test','red']]
+    graphs = [['train RMSE','Training','blue',"(a) Training set convergence"],['test RMSE','Test','red',"(b) Test set convergence"]]
     for idx, ax in enumerate(ax):
         current_graph = graphs[idx]
         ax.plot(list(range(1, num_epochs + 1)), df_convergence.groupby('epoch')[current_graph[0]].mean(), label=current_graph[1],color=current_graph[2])
         ax.set_xlabel('Epoch')
         ax.legend(loc='upper right')
         ax.set_ylabel('RMSE')
+        ax.set_title(current_graph[3])
     plt.tight_layout(pad=1.0)
     plt.savefig(data_path + 'convergence_vanilla_' + model_type + '.png')
+    plt.close(fig)
+
+    ####################################################
+    # output vertical  convergence for train/test RMSE #
+    ####################################################
+    df_convergence = pd.read_csv(data_path + 'vanilla_' + model_type + '_epoch_loss.csv')
+    # 3 line charts
+    fig, ax = plt.subplots(2, 1, figsize=(5, 6))
+    ax = ax.ravel()
+    graphs = [['train RMSE','Training','blue',"(a) Training set convergence"],['test RMSE','Test','red',"(b) Test set convergence"]]
+    for idx, ax in enumerate(ax):
+        current_graph = graphs[idx]
+        ax.plot(list(range(1, num_epochs + 1)), df_convergence.groupby('epoch')[current_graph[0]].mean(),
+                label=current_graph[1], color=current_graph[2])
+        if idx == 1:
+            ax.set_xlabel('Epoch')
+        ax.legend(loc='upper right')
+        ax.set_ylabel('RMSE')
+        ax.set_title(current_graph[3])
+    plt.tight_layout(pad=1.0)
+    plt.savefig(data_path + 'convergence_vanilla_vertical_' + model_type + '.png')
     plt.close(fig)
 
     # calculate mean and std dev of each metric, across the samples
@@ -550,7 +571,7 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_un
         wr.writerow(col_header_csv_)
 
     # Early stopping
-    patience = 10
+    patience = 50
     trigger_times = 0
     list_mse = []
 
@@ -647,7 +668,6 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_un
 
     # output preds
     nn_preds_train = model(torch.tensor(np.expand_dims(X_train_all, axis=2)).float(),testing=True).cpu().detach().numpy()
-    print(np.percentile(nn_preds_train, [25, 50, 75]), np.percentile(Y_train, [25, 50, 75]))
 
     ###########################################
     # look at mean and std dev of predictions #
@@ -662,22 +682,44 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_un
     print("mean of train_y", np.mean(y_train_returns, axis=0))
     print("std dev of train_y", np.std(y_train_returns, axis=0))
 
-    ##############################################
-    # output convergence for train/val/test RMSE #
-    ##############################################
+    ####################################################
+    # output horizonal convergence for train/test RMSE #
+    ####################################################
     df_convergence = pd.read_csv(data_path+'bayes_'+model_type+'_epoch_loss.csv')
     # 3 line charts
-    fig, ax = plt.subplots(1, 3,figsize=(10, 3))
+    fig, ax = plt.subplots(1, 2,figsize=(7, 3))
     ax = ax.ravel()
-    graphs = [['train RMSE','Train','blue'],['val RMSE','Validation','green'],['test RMSE','Test','red']]
+    graphs = [['train RMSE','Training','blue',"(a) Training set convergence"],['test RMSE','Test','red',"(b) Test set convergence"]]
     for idx, ax in enumerate(ax):
         current_graph = graphs[idx]
         ax.plot(list(range(1, len(df_convergence) + 1)), df_convergence.groupby('epoch')[current_graph[0]].mean(), label=current_graph[1],color=current_graph[2])
         ax.set_xlabel('Epoch')
         ax.legend(loc='upper right')
         ax.set_ylabel('RMSE')
+        ax.set_title(current_graph[3])
     plt.tight_layout(pad=1.0)
     plt.savefig(data_path + 'convergence_bayes_' + model_type + '.png')
+    plt.close(fig)
+
+    ####################################################
+    # output vertical  convergence for train/test RMSE #
+    ####################################################
+    df_convergence = pd.read_csv(data_path + 'bayes_' + model_type + '_epoch_loss.csv')
+    # 3 line charts
+    fig, ax = plt.subplots(2, 1, figsize=(5, 6))
+    ax = ax.ravel()
+    graphs = [['train RMSE','Training','blue',"(a) Training set convergence"],['test RMSE','Test','red',"(b) Test set convergence"]]
+    for idx, ax in enumerate(ax):
+        current_graph = graphs[idx]
+        ax.plot(list(range(1, len(df_convergence) + 1)), df_convergence.groupby('epoch')[current_graph[0]].mean(),
+                label=current_graph[1], color=current_graph[2])
+        if idx == 1:
+            ax.set_xlabel('Epoch')
+        ax.legend(loc='upper right')
+        ax.set_ylabel('RMSE')
+        ax.set_title(current_graph[3])
+    plt.tight_layout(pad=1.0)
+    plt.savefig(data_path + 'convergence_bayes_vertical_' + model_type + '.png')
     plt.close(fig)
 
     #########
@@ -726,6 +768,7 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_un
 
     # 3 line charts, 6 times
     dict_ymax = {'sp500':4800,'nasdaq':16000, 'asx200':7700, 'nikkei225':31000, 'dax':18000, 'eurostoxx50':4700}
+    titles_ = ["(a) 14$^{\mathregular{th}}$ timestep","(b) 24$^{\mathregular{th}}$ timestep","(c) 34$^{\mathregular{th}}$ timestep"]
     for instr_ in ['sp500', 'nasdaq', 'asx200', 'nikkei225', 'dax', 'eurostoxx50']:
         f, a = plt.subplots(1, 3,figsize=(10, 4))
         a = a.ravel()
@@ -745,6 +788,7 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_un
             ax.set_xlim(xmax=45)
             ax.set_ylim(ymax=dict_ymax[instr_])
             ax.set_xlabel('Time (weeks)')
+            ax.set_title(titles_[idx])
             if idx == 0:
                 ax.legend(loc='upper left')
                 ax.set_ylabel('Closing price')
@@ -755,15 +799,15 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_un
         plt.close(fig)
 
     ##########################################
-    # Full test set - 5 step ahead for SP500 #
+    # Full test set - 5 step ahead for Asia #
     ##########################################
     # S&P 500, DAX
     df_test['actual5'] = df_test.groupby('instr')['close'].shift(-5)
     df_test['pred_close5'] = df_test['close']*(1+df_test['pred5'])
     f, a = plt.subplots(1, 2,figsize=(10, 4))
     a = a.ravel()
-    list_instrs = ['sp500','dax']
-    name_dict_ = {'sp500':'S&P 500','dax':'DAX'}
+    list_instrs = ['asx200','nikkei225']
+    name_dict_ = {'asx200':'(a) S&P/ASX 200','nikkei225':'(b) Nikkei 225'}
     for idx, ax in enumerate(a):
         instr_ = list_instrs[idx]
         df_ = df_test[(df_test['instr']==instr_) & (df_test['actual5'].isnull() == False)].iloc[::5,:].copy()
@@ -783,15 +827,44 @@ def train_bayes_rnn_or_lstm(df_data, X_train, Y_train, X_test, Y_test, Y_test_un
     plt.close(fig)
 
     ##########################################
-    # Full test set - 1 step ahead for SP500 #
+    # Full test set - 3 step ahead for US #
+    ##########################################
+    # S&P 500, DAX
+    df_test['actual3'] = df_test.groupby('instr')['close'].shift(-3)
+    df_test['pred_close3'] = df_test['close']*(1+df_test['pred3'])
+    f, a = plt.subplots(1, 2,figsize=(10, 4))
+    a = a.ravel()
+    list_instrs = ['sp500','nasdaq']
+    name_dict_ = {'sp500':'(a) S&P 500','nasdaq':'(b) Nasdaq-100'}
+    for idx, ax in enumerate(a):
+        instr_ = list_instrs[idx]
+        df_ = df_test[(df_test['instr']==instr_) & (df_test['actual3'].isnull() == False)].iloc[::3,:].copy()
+        df_ = df_.iloc[-25:, :].copy()
+        df_ = df_.reset_index(drop=True)
+        ax.plot(df_.index*3, df_['pred_close3'], label='Prediction')
+        ax.plot(df_.index*3, df_['actual3'], label='Actual')
+        ax.plot(df_.index*3, df_['pred_close_lb3'], label='Uncertainty', color='blue', linestyle='--', alpha=0.25)
+        ax.plot(df_.index*3, df_['pred_close_ub3'], color='blue', linestyle='--', alpha=0.25)
+        ax.fill_between(df_.index*3, df_['pred_close_lb3'], df_['pred_close_ub3'], facecolor='grey', alpha=0.2)
+        ax.set_xlabel('Time (weeks)')
+        ax.set_title(name_dict_[instr_])
+        if idx == 0:
+            ax.legend(loc='upper left')
+        ax.set_ylabel('Closing price')
+    plt.tight_layout(pad=1.0)
+    plt.savefig(data_path + 'full_testset_preds_3step_' + model_type + '.png')
+    plt.close(fig)
+
+    ##########################################
+    # Full test set - 1 step ahead for Euro #
     ##########################################
     # S&P 500, DAX
     df_test['actual1'] = df_test.groupby('instr')['close'].shift(-1)
     df_test['pred_close1'] = df_test['close']*(1+df_test['pred1'])
     f, a = plt.subplots(1, 2,figsize=(10, 4))
     a = a.ravel()
-    list_instrs = ['sp500','dax']
-    name_dict_ = {'sp500':'S&P 500','dax':'DAX'}
+    list_instrs = ['eurostoxx50','dax']
+    name_dict_ = {'eurostoxx50':'(a) Euro Stoxx 50','dax':'(b) DAX'}
     for idx, ax in enumerate(a):
         instr_ = list_instrs[idx]
         df_ = df_test[(df_test['instr']==instr_) & (df_test['actual1'].isnull() == False)].iloc[-50:,:].copy()
